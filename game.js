@@ -330,7 +330,7 @@ function openHelp() {
     <div class="item"><span class="ie">💗</span><div class="it"><b>仲間との好感度</b>
       <small>交流で好感度アップ。30・60・90で特別なイベントとボーナス。エンディングも変わる。</small></div></div>
     <div class="item"><span class="ie">🎬</span><div class="it"><b>8・16・24・32週はオーディション</b>
-      <small>ステータス評価60％＋ことばパフォーマンス40％で採点。ライバル玲奈に勝てるか。</small></div></div>
+      <small>ステータス評価60％＋ことばパフォーマンス40％で採点。合格には3段階：✨期待枠 → 合格 → 🏆トップ合格。まずは期待枠をねらおう。</small></div></div>
     <div class="item"><span class="ie">✨</span><div class="it"><b>とくしゅのうりょく</b>
       <small>PERFECTを重ねるとスキルを習得。レッスンの伸びや審査の点数が上がる。全14種。</small></div></div>
     <div class="item"><span class="ie">💎</span><div class="it"><b>引きつぎ（2周目以降）</b>
@@ -862,16 +862,25 @@ function finishAudition(a, idx, r) {
   const total = Math.round(statScore + quizScore + fx.aud + outfitB);
   const rivalBase = a.rival + ri(-4, 5);
   const win = total >= rivalBase;
-  const pass = total >= a.need;
-  const fans = Math.round((pass ? a.fans : a.fans * .35) * (1 + (total - a.need) / 100) * (1 + fx.fan));
+  /* 段階合格：期待枠 → 合格 → トップ合格 */
+  const hope = a.need - 20, mid = a.need - 6, top = a.need + 10;
+  const tier = total >= top ? 2 : total >= mid ? 1 : total >= hope ? 0 : -1;
+  const pass = tier >= 0;
+  const fanMul = tier === 2 ? 1.4 : tier === 1 ? 1 : tier === 0 ? .7 : .35;
+  const fans = Math.round(a.fans * fanMul * (1 + Math.max(0, total - hope) / 100) * (1 + fx.fan));
   G.fans += Math.max(0, fans);
-  G.auds.push({ n: a.n, score: total, rival: rivalBase, pass, win });
+  G.auds.push({ n: a.n, score: total, rival: rivalBase, pass, win, tier });
   G.totalQ += r.total; G.totalOK += r.correct;
   G.bestCombo = Math.max(G.bestCombo, r.best);
-  if (win) { G.aff.rena = clamp(G.aff.rena + 6, 0, 100); confetti(50); sfx.clear(); }
+  if (win) { G.aff.rena = clamp(G.aff.rena + 6, 0, 100); }
   else G.aff.rena = clamp(G.aff.rena + 3, 0, 100);
+  if (tier === 2) { confetti(60); sfx.clear(); }
+  else if (tier >= 0) { confetti(30); sfx.clear(); }
 
-  const [rn, rc] = pass ? (win ? ["合格 ＆ 玲奈に勝利！", "#ff3d8b"] : ["合格！", "#ff7b3d"]) : ["不合格…", "#7b8fd6"];
+  const [rn, rc] = tier === 2 ? [win ? "🏆 トップ合格 ＆ 玲奈に勝利！" : "🏆 トップ合格！", "#ff3d8b"]
+    : tier === 1 ? ["合格！", "#ff7b3d"]
+    : tier === 0 ? ["✨ 期待枠で合格！", "#2fb79c"]
+    : ["不合格…", "#7b8fd6"];
   $("resPanel").innerHTML = `
     <div class="resHead">
       <div style="font-size:12px;color:var(--ink2)">${a.n}</div>
@@ -891,19 +900,21 @@ function finishAudition(a, idx, r) {
       ${outfitB ? `<div class="gain"><span>衣装ボーナス</span><b>+${Math.round(outfitB)}</b></div>` : ""}
       <div class="gain"><span>💗 ファン</span><b>+${Math.max(0, fans).toLocaleString()}</b></div>
     </div>
-    <div class="smallnote">合格ライン ${a.need}点　／　正解 ${r.correct}/${r.total}　最大コンボ ${r.best}</div>
+    <div class="smallnote">🏆 トップ合格 ${top}点〜　／　合格 ${mid}点〜　／　✨ 期待枠 ${hope}点〜<br>正解 ${r.correct}/${r.total}　最大コンボ ${r.best}</div>
     <button class="btn" id="resOk">つぎへ ▶</button>`;
   $("ovResult").classList.add("on");
   $("resOk").onclick = () => {
     sfx.tap(); $("ovResult").classList.remove("on");
     checkSkills(() => {
       if (idx === 3) return ending();
-      showEvent({
-        c: pass ? "misaki" : "hinano",
-        t: pass ? `「やったね、${esc(G.name)}ちゃん！ ……でも、ここからが本番だよ」`
-                : `「くやしいけど…まだ終わってないよ！ 次、いっしょにがんばろ！」`,
-        ch: [{ t: "▶", fx: pass ? { cond: 1 } : { st: { me: 3 } }, after: () => afterWeek() }]
-      });
+      const evt = tier === 2
+        ? { c: "misaki", t: `「トップ合格だよ、${esc(G.name)}ちゃん！\n審査員が全員、きみの名前をメモしてた。\n……すごいことなんだよ、これ」`, fx: { cond: 1, st: { me: 3 } } }
+        : tier === 1
+        ? { c: "misaki", t: `「合格！ やったね、${esc(G.name)}ちゃん。\n……でも、ここからが本番だよ」`, fx: { cond: 1 } }
+        : tier === 0
+        ? { c: "misaki", t: `「……期待枠での合格。\n点数はまだ足りない。でも審査員は\n『この子は伸びる』って言ってた。\nその期待、次で証明しよう」`, fx: { st: { me: 4 } } }
+        : { c: "hinano", t: `「くやしいけど…まだ終わってないよ！\n次、いっしょにがんばろ！」`, fx: { st: { me: 3 } } };
+      showEvent({ c: evt.c, t: evt.t, ch: [{ t: "▶", fx: evt.fx, after: () => afterWeek() }] });
     });
   };
 }
