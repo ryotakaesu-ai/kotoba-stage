@@ -925,18 +925,75 @@ function ending() {
   const stTotal = STATS.reduce((s, x) => s + G.st[x.k], 0);
   const passCount = G.auds.filter(a => a.pass).length;
   const point = last.score + stTotal / 5 + passCount * 6 + (last.win ? 12 : 0);
-  let rk, title, text;
-  if (point >= 175) { rk = "S"; title = "センターデビュー！"; text = `${G.name}の名前が、いちばん大きく光った。\nセンターに立つのは、きみだ。\n\n「計算だけは、だれにも負けない」。\nその小さな自信が、最後にステージを支配した。`; }
-  else if (point >= 150) { rk = "A"; title = "グループデビュー！"; text = `${G.name}は、正式にデビューメンバーに選ばれた。\nまだセンターじゃない。でも、ステージの上にいる。\n\nここからが、ほんとうのスタート。`; }
-  else if (point >= 120) { rk = "B"; title = "研究生として合格"; text = `あと一歩、届かなかった。\nでも審査員のひとりが、こう言った。\n「あの子、来年ばけるよ」\n\n研究生として、もう一年。`; }
-  else { rk = "C"; title = "また、来年。"; text = `今回はデビューできなかった。\nくやしくて、涙が出た。\n\nでも、32週前の自分より、計算はずっと速くなった。\nそれは、だれにも取られない。`; }
+  if (point >= 175) return endCard("S", "センターデビュー！",
+    `${G.name}の名前が、いちばん大きく光った。\nセンターに立つのは、きみだ。\n\n「ことばだけは、だれにも負けない」。\nその小さな自信が、最後にステージを支配した。`, point, 1);
+  if (point >= 150) return endCard("A", "グループデビュー！",
+    `${G.name}は、正式にデビューメンバーに選ばれた。\nまだセンターじゃない。でも、ステージの上にいる。\n\nここからが、ほんとうのスタート。`, point, 1);
+  /* ============ デビューに届かない → 敗者復活チェーン ============ */
+  G.endPoint = point; save();
+  redemption1();
+}
+
+/* ---------- 救済①：敗者復活ライブ ---------- */
+function redemption1() {
+  showEvent({
+    c: "misaki",
+    t: "「……ちょっと待って。いま、電話が。\n\n『敗者復活ステージに、1枠だけ空きが出た』\n\n──まだ、終わってない。\nいちばん得意なステージで、もう一回だけ勝負しよう」",
+    ch: [{ t: "「やります」", fx: { cond: 1 }, after: () => startQuiz({
+      mode: "aud", lv: 4, total: 10, title: "🔥 敗者復活ライブ",
+      onEnd: r => {
+        G.totalQ += r.total; G.totalOK += r.correct; G.bestCombo = Math.max(G.bestCombo, r.best);
+        if (r.score >= 65) return endCard("A", "敗者復活デビュー！",
+          `会場の隅で、名前が呼ばれた。\n「敗者復活──${G.name}」\n\n一度は落ちた。でも、あきらめなかった。\nその姿を、審査員はずっと見ていた。\n\n泣いたのは、発表のあとだった。`, G.endPoint + 30, 1);
+        redemption2();
+      }
+    }) }]
+  });
+}
+/* ---------- 救済②：SNS生配信チャレンジ ---------- */
+function redemption2() {
+  showEvent({
+    c: "hinano",
+    t: "「ねえ、まだへこんでる場合じゃないよ！\nSNSの生配信、今からやろう！\n\nファンのみんなが『もう一回見たい』って言ってる。\n配信がバズったら、事務所だって無視できない！」",
+    ch: [{ t: "「……うん、やる！」", fx: {}, after: () => startQuiz({
+      mode: "aud", lv: 3, total: 8, title: "📱 SNS生配信チャレンジ",
+      onEnd: r => {
+        G.totalQ += r.total; G.totalOK += r.correct; G.bestCombo = Math.max(G.bestCombo, r.best);
+        G.fans += r.score * 20;
+        if (r.score >= 55) return endCard("B+", "ファン投票デビュー！",
+          `配信の同時視聴者数が、事務所の予想をこえた。\n「この子をデビューさせないなんて、もったいない」\n\nファンの声が、扉をこじあけた。\nきみを推してくれた人の数だけ、\nこのデビューには意味がある。`, G.endPoint + 20, 1);
+        redemption3();
+      }
+    }) }]
+  });
+}
+/* ---------- 救済③：特別研究生試験 ---------- */
+function redemption3() {
+  showEvent({
+    c: "rena",
+    t: "「……わたしから、事務所に話をつけた。\n特別研究生試験。これに受かれば、デビューへの道は残る。\n\n──あなたを、こんなところで終わらせたくないの。\n行きなさい」",
+    ch: [{ t: "「玲奈……ありがとう」", fx: { aff: { rena: 10 }, silent: true }, after: () => startQuiz({
+      mode: "aud", lv: 2, total: 8, title: "🌙 特別研究生試験",
+      onEnd: r => {
+        G.totalQ += r.total; G.totalOK += r.correct; G.bestCombo = Math.max(G.bestCombo, r.best);
+        if (r.score >= 40) return endCard("B", "研究生デビュー！",
+          `特別研究生として、デビューへの切符をつかんだ。\n遅咲きでいい。\n\n花の咲く順番は、みんなちがう。\nでも、咲くと決めた花は、かならず咲く。`, G.endPoint + 10, 1);
+        endCard("C", "また、来年。",
+          `今回はデビューできなかった。\nくやしくて、涙が出た。\n\nでも、32週前の自分より、ことばの力はずっと強くなった。\nそれは、だれにも取られない。\n\n※さいごまで挑んだきみに、がんばりボーナス！`, G.endPoint, 1.5);
+      }
+    }) }]
+  });
+}
+
+/* ---------- エンディングカード表示 ---------- */
+function endCard(rk, title, text, point, dpMul) {
 
   const topChar = CHAR_IDS.reduce((a, b) => G.aff[a] >= G.aff[b] ? a : b);
   const bond = G.aff[topChar] >= 60 ? `<div style="margin-top:12px;display:flex;gap:10px;align-items:center;background:#fff6fb;border-radius:16px;padding:10px">
     ${charImg(topChar, 56)}<div style="font-size:12px;text-align:left;line-height:1.8">
     <b>${CHARS[topChar].n} とのエンディング</b><br>${bondEndText(topChar, rk)}</div></div>` : "";
 
-  const dp = Math.round(point / 3 + G.fans / 800 + G.pf.yomi + G.pf.kanyoku + G.pf.kotowaza + G.pf.keigo + G.pf.goi);
+  const dp = Math.round((point / 3 + G.fans / 800 + Object.values(G.pf).reduce((a, b) => a + b, 0)) * (dpMul || 1));
   DB.meta.dp += dp; DB.meta.plays++;
   DB.meta.hall.unshift({
     name: G.name, av: G.av, rank: rk, title, score: Math.round(point),
@@ -949,7 +1006,7 @@ function ending() {
 
   $("endCard").innerHTML = `
     <div style="font-size:12px;color:var(--ink2)">デビュー審査ライブ　結果</div>
-    <div class="endRank">${rk}</div>
+    <div class="endRank" style="${rk.length > 1 ? "font-size:min(17vw,72px)" : ""}">${rk}</div>
     <div class="endTitle">${title}</div>
     <div style="display:flex;justify-content:center;margin:6px 0 10px">
       <img src="${AVATARS[G.av].img}" style="width:96px;height:96px;border-radius:24px;object-fit:cover;box-shadow:0 6px 16px #0003">
